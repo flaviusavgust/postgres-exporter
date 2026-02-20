@@ -1,0 +1,10 @@
+---
+
+- name: restart postgres_exporter
+  become: true
+  become_user: root
+  systemd:
+    name: postgres_exporter
+    state: restarted
+    enabled: true
+    daemon_reload: true

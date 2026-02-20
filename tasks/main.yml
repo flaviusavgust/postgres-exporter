@@ -1,0 +1,71 @@
+---
+
+- name: 'main | Create exporter system user'
+  user:
+    name: "{{ postgres_exporter_user }}"
+    state: present
+    system: true
+
+- name: 'main | Create exporter logs dir'
+  file:
+    path: "{{ postgres_exporter_log_path }}"
+    owner: "{{ postgres_exporter_user }}"
+    group: "{{ postgres_exporter_user }}"
+    mode: "0755"
+    state: directory
+
+- name: 'main | Ensure postgres-exporter dirs exist'
+  file:
+    path: "{{ postgres_exporter_dir }}/dist"
+    owner: "{{ postgres_exporter_user }}"
+    group: "{{ postgres_exporter_user }}"
+    mode: "0755"
+    state: directory
+  with_items:
+    - "{{ postgres_exporter_dir }}"
+    - "{{ postgres_exporter_dist_dir }}"
+
+- name: 'main | Download & extract exporter archive'
+  unarchive:
+    remote_src: true
+    src: "{{ postgres_exporter_url }}"
+    dest: "{{ postgres_exporter_dist_dir }}"
+    owner: "{{ postgres_exporter_user }}"
+    group: "{{ postgres_exporter_user }}"
+    mode: "0755"
+    creates: "{{ postgres_exporter_dist_dir }}/{{ postgres_exporter_dist }}/postgres_exporter"
+
+- name: 'main | Create symlink'
+  file:
+    src: "{{ postgres_exporter_dist_dir }}/{{ postgres_exporter_dist }}/postgres_exporter"
+    path: "{{ postgres_exporter_dir }}/postgres_exporter"
+    owner: "{{ postgres_exporter_user }}"
+    group: "{{ postgres_exporter_user }}"
+    force: true
+    state: link
+  notify: restart postgres_exporter
+
+- name: 'main | Create exporter default config file'
+  template:
+    src: "postgres_exporter.default.conf.j2"
+    dest: "/etc/default/postgres_exporter"
+    owner: root
+    group: "{{ postgres_exporter_user }}"
+    mode: "0644"
+  notify: restart postgres_exporter
+
+- name: 'main | Create exporter systemd unit file'
+  template:
+    src: "postgres_exporter.systemd.j2"
+    dest: "/lib/systemd/system/postgres_exporter.service"
+    owner: root
+    group: root
+    mode: "0644"
+  notify: restart postgres_exporter
+
+- name: 'main | Start exporter service'
+  systemd:
+    name: postgres_exporter
+    state: started
+    enabled: true
+    daemon_reload: true
